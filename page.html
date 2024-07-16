@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Вибір місця розташування</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        .map-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+        }
+        #pac-input {
+            padding: 10px;
+            width: 90%;
+            max-width: 500px;
+            z-index: 5;
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 16px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .pac-item, .pac-item-query {
+            font-size: 16px !important; /* Збільшуємо розмір шрифту */
+            padding: 4px !important; /* Додаємо відступи зверху і знизу */
+        }
+        .button-container {
+            padding: 20px;
+            text-align: center;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+    <script>
+        let map;
+        let marker;
+        let autocomplete;
+        let infowindow;
+        let geocoder;
+
+        function initMap() {
+            const kiev = { lat: 50.4501, lng: 30.5234 };
+
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: kiev,
+                zoom: 13
+            });
+
+            geocoder = new google.maps.Geocoder();
+            infowindow = new google.maps.InfoWindow();
+
+            const input = document.getElementById('pac-input');
+            autocomplete = new google.maps.places.Autocomplete(input, { types: ['(cities)'] });
+
+            autocomplete.bindTo('bounds', map);
+
+            autocomplete.addListener('place_changed', function() {
+                infowindow.close();
+                if (marker) {
+                    marker.setMap(null);
+                }
+
+                const place = autocomplete.getPlace();
+                if (!place.geometry || !place.geometry.location) {
+                    console.log("Returned place contains no geometry");
+                    return;
+                }
+
+                if (place.geometry.viewport) {
+                    map.fitBounds(place.geometry.viewport);
+                } else {
+                    map.setCenter(place.geometry.location);
+                    map.setZoom(13);
+                }
+
+                marker = new google.maps.Marker({
+                    map: map,
+                    position: place.geometry.location
+                });
+
+                geocodePlaceId(place.place_id);
+            });
+
+            map.addListener('click', function(event) {
+                placeMarker(event.latLng);
+            });
+        }
+
+        function placeMarker(location) {
+            if (marker) {
+                marker.setPosition(location);
+            } else {
+                marker = new google.maps.Marker({
+                    position: location,
+                    map: map
+                });
+            }
+        }
+
+        function sendCoordinates() {
+            if (marker) {
+                const coordinates = marker.getPosition();
+                const lat = coordinates.lat();
+                const lng = coordinates.lng();
+                Telegram.WebApp.sendData(JSON.stringify({ lat: lat, lng: lng }));
+                Telegram.WebApp.close(); // Close the web app after sending data
+            } else {
+                alert("Будь ласка, виберіть місце на карті.");
+            }
+        }
+
+        function geocodePlaceId(placeId) {
+            geocoder.geocode({ 'placeId': placeId }, function(results, status) {
+                if (status === 'OK') {
+                    if (results[0]) {
+                        map.fitBounds(results[0].geometry.viewport);
+                    }
+                } else {
+                    console.log('Geocode was not successful for the following reason: ' + status);
+                }
+            });
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="map-container">
+            <input id="pac-input" class="controls" type="text" placeholder="Введіть назву населеного пункту">
+            <div id="map"></div>
+        </div>
+        <div class="button-container">
+            <button onclick="sendCoordinates()">Відправити координати</button>
+        </div>
+    </div>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDKR8rHPGBG8FZVtIBN12wUNmx3XcB5MH8&libraries=places&callback=initMap"></script>
+</body>
+</html>
